@@ -4,10 +4,14 @@ import pandas as pd
 from pathlib import Path
 import seaborn as sns
 import matplotlib.pyplot as plt
+import numpy as np
+from scipy.spatial import cKDTree # calculste the nearest predator
+exec(open("Functions.py").read())
 
-#=================================#
-####    Schools during event   ####
-#=================================#
+
+#==================================#
+####    Find predation events   ####
+#==================================#
 
 # [Step1] predator echograms: manually detected predator-like echograms, save as png
 echograms = [f.name for f in os.scandir('C:\\Users\\xiz011\\OneDrive - University of Bergen\\Desktop\\Paper3\\Echogram') if f.is_file() and f.name.endswith(".png")] #f.name -> on.y file name / f.path -> entire path
@@ -143,13 +147,22 @@ unique_events.to_csv("events_to_label.csv", index=False)
 
 # 
 unique_event_df = pd.read_csv("events_labeled.csv", sep=";")
+unique_event_df["datetime"] = pd.to_datetime(unique_event_df["datetime"], dayfirst=True)
 
 unique_event_df = unique_event_df[
     (unique_event_df["predator_certainty"] >=2) 
     & (unique_event_df["predator_type"].notna())
     & (unique_event_df["event"] == "predator-prey")
     & (unique_event_df["sandeel"].notna())].copy()
+unique_event_df['predator_type'] = unique_event_df['predator_type'].replace({'D': 'Dolphin', 'S': 'Seabird'})
 
+
+
+
+
+#===============================#
+####    school data frame    ####
+#===============================#
 
 # [Step5] retrieve sandeel schools during the events
 
@@ -170,12 +183,10 @@ school_df = school[first_key]
 school_df = school_df[(school_df["vessel"] != "EROS")
     & (school_df["category"] != "noise")].copy()
 
-# read newly scrutinised sandeel schools
+# add newly scrutinised sandeel schools
 sand_added = pyreadr.read_r('sandeel.RData')
 first_key = list(sand_added.keys())[0]
 added_df = sand_added[first_key]
-
-# concate to the school_df
 school_df = pd.concat([school_df, added_df], ignore_index=True)
 
 
@@ -203,31 +214,103 @@ for _, predator in predator_df.iterrows():
     school_df.loc[mask, "predation"] = "predation"
 
 
-school200_df = school_df[school_df["Frequency"] == 200].copy()
+# find predator type
+events = unique_event_df.copy()
+schools = school_df.copy()
+schools["_row"] = range(len(schools))
+events = events.rename(columns={"platform": "vessel"})
+
+left = (
+    schools.loc[
+        schools["predation"].eq("predation"),
+        ["_row", "vessel", "datetime"]
+    ]
+    .dropna(subset=["vessel", "datetime"])
+    .sort_values("datetime")
+)
+
+right = (
+    events[["vessel", "datetime", "predator_type"]]
+    .dropna(subset=["vessel", "datetime"])
+    .sort_values("datetime")
+)
 
 
-# read sandeel schools result from LDA
+matched = pd.merge_asof(
+    left,
+    right,
+    on="datetime",
+    by="vessel",
+    direction="nearest",
+    #tolerance=pd.Timedelta(minutes=30)
+)
+
+labels = [None] * len(school_df)
+for row_number, predator_type in zip(
+    matched["_row"], matched["predator_type"]
+):
+    if pd.notna(predator_type):
+        labels[row_number] = predator_type
+
+school_df["predator_type"] = labels
+
+school_df["predator_group"] = school_df["predator_type"]
+school_df.loc[(school_df['predation'] == "non-predation"), 'predator_group'] = 'non-predation'
+school_df.loc[(school_df['predation'] == "predation") & (school_df['predator_type'].isna()), 'predator_group'] = 'unknown'
+
+
+
+
+# find sandeel schools based on LDA results
 sandeel = pyreadr.read_r("C:/Data/LDAresult_80TrainData_14var_excl.smallschools_alter.rf/sandeel.Rdata")
 first_key = list(sandeel.keys())[0]
 sandeel_df = sandeel[first_key]
 
-school200_df["type"] = school200_df["id"].isin(sandeel_df["id"]).map({
+school_df["type"] = school_df["id"].isin(sandeel_df["id"]).map({
     True: "sandeel",
     False: "other"
 })
 
+
+
+# calculate relative time of day
+school_df["sunrise"] = sunrise(school_df["Latitude"], school_df["Longitude"], school_df["datetime"], tz="UTC") 
+school_df["sunset"] = sunset(school_df["Latitude"], school_df["Longitude"], school_df["datetime"], tz="UTC") 
+school_df["rel_time"] = ((school_df["datetime"] - school_df["sunrise"]) / (school_df["sunset"] - school_df["sunrise"]))
+
+
+
+# event number
+p = school_df[school_df["predation"].eq("predation")].sort_values(["vessel", "datetime"]).copy()
+time_gap = p.groupby("vessel")["datetime"].diff().gt("1h")
+type_change = p["predator_type"].ne(p["predator_type"].shift())
+vessel_change = p["vessel"].ne(p["vessel"].shift())
+p["event_no"] = ((time_gap | type_change | vessel_change).cumsum())
+event_start = p.groupby("event_no")["datetime"].transform("min")
+p["event"] = (p["vessel"].astype(str)+ "_"+ start.dt.strftime("%m%d_T%H")+ "_"+ p["predator_type"].astype(str))
+school_df["event"] = pd.NA
+school_df.loc[p.index, "event"] = p["event"]
+
+
+
+# filter the dataframe 200kHz
+school200_df = school_df[school_df["Frequency"] == 200].copy()
+
 school200_df.groupby(["type"])["predation"].value_counts()
+school200_df['SV'] = 10*np.log10(school200_df['sV_mean'])
 
-
-#==================================#
-####     Analysis and plot      ####
-#==================================#
+#=====================#
+####     plot      ####
+#=====================#
 #%matplotlib qt
 
 #============================================================================================================================#
 # histogram
-plt.figure(); plt.hist(school200_df[(school200_df["type"] == "sandeel") & (school200_df["predation"] == "predation")]["meanDepth"]); plt.show()
-plt.figure(); plt.hist(school200_df[(school200_df["type"] == "sandeel") & (school200_df["predation"] == "non-predation")]["meanDepth"]); plt.show()
+plot_df = school200_df[school200_df["type"] == "sandeel"].copy()
+plt.figure(); plt.hist(plot_df[plot_df["predation"] == "predation"]["meanDepth"]); plt.show()
+plt.figure(); plt.hist(plot_df[plot_df["predation"] == "non-predation"]["meanDepth"]); plt.show()
+plt.figure(); plt.hist(plot_df[plot_df["predation"] == "predation"]["SV"]); plt.show()
+plt.figure(); plt.hist(plot_df[plot_df["predation"] == "non-predation"]["SV"]); plt.show()
 #============================================================================================================================#
 
 
@@ -235,20 +318,69 @@ plt.figure(); plt.hist(school200_df[(school200_df["type"] == "sandeel") & (schoo
 
 #============================================================================================================================#
 # boxplot sV_mean, meanDepth,
+plot_df = school200_df[school200_df["type"] == "sandeel"].copy()
+
+
 plt.figure()
-sns.boxplot(data=school200_df[school200_df["type"] == "sandeel"], 
-            x="predation", y="sV_mean", log_scale = True, 
-            order=["non-predation", "predation"]
+sns.boxplot(data=plot_df, 
+            x="predator_group", y="SV", log_scale = False, 
+            #order=["non-predation", "predation"]
            )
 plt.show()
 
 
 
 plt.figure()
-sns.boxplot(data=school200_df[school200_df["type"] == "sandeel"], 
-            x="predation", y="meanDepth", log_scale = False, 
-            order=["non-predation", "predation"]
+sns.boxplot(data=plot_df, 
+            x="predator_group", y="meanDepth", log_scale = False, 
+            #order=["non-predation", "predation"]
            )
 plt.gca().invert_yaxis()
 plt.show()
 #============================================================================================================================#
+
+#============================================================================================================================#
+# scatterplot nor_Depth vs time,
+plot_df = school200_df[school200_df["type"] == "sandeel"].copy()
+#plot_df = school200_df.copy()
+plot_df = plot_df[plot_df["predator_group"] != "non-predation"]
+
+plt.figure()
+sns.scatterplot(data=plot_df,
+                x="rel_time", y="nor_Depth",
+                hue = "predator_group", #style = "predator_group",
+                legend = True,
+           )
+plt.gca().invert_yaxis()
+plt.show()
+
+#============================================================================================================================#
+
+
+
+
+#======================#
+####     Stats      ####
+#======================#
+import statsmodels.api as sm
+from statsmodels.formula.api import ols
+
+model_1w = ols("score ~ C(method)", data=df).fit()
+print(sm.stats.anova_lm(model_1w, typ=2))
+
+
+
+
+
+
+
+#===========================================#
+####   based on distance to predator     ####
+#===========================================#
+# find the nearest predator school 
+
+schools = school_df.reset_index(names="school_id").sort_values(["datetime", "vessel"])
+predators = predator_df.reset_index(names="predator_id").sort_values(["datetime", "vessel"])
+
+nearest = pd.merge_asof(schools, predators[["predator_id", "vessel", "datetime", "Latitude", "Longitude", "meanDepth"]], on="datetime", direction="nearest", by = "vessel", suffixes=("_school", "_predator"))
+

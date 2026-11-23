@@ -43,25 +43,23 @@ TBD
 ***Keywards:*** *USVs, Predator-prey interaction, Sandeel, Acoustic backscatter*
 
 # Introduction
-## Importance of predator-prey interactions to understand marine ecosystems
-
-However, it's difficult to observe concurrently. Simultaneous observations of marine predators and prey fish remain challenging because predators may avoid large research vessels, and predator–prey interactions may occur outside their sampling coverage. Consequently, relatively few studies have documented concurrent, fine-scale predator–prey interactions in the field [@nottestad2002].
+## Predator-prey interactions
+Understanding predator–prey interactions is essential for improving our understanding of marine ecosystems.
+Fine-scale observations are important for resolving these interactions.
 \
 \
 \
 
-## Limited information from the previous studies about predator-prey interactions
-Field-based evidence remains limited, although such evidence is important for understanding anti-predator strategies and how these behaviours affect predators’ access to fish. 
-Vessel-based surveys is not optimal.
-
+## Fine scale predator-prey interactions
+Relatively few studies have documented concurrent, fine-scale predator–prey interactions in the field [@nottestad2002].
+Simultaneous observations of marine predators and prey fish remain challenging because predators may avoid large research vessels, and predator–prey interactions may occur outside their sampling coverage. 
 \
 \
 \
 
 ## Potential aid from USVs
-
-However, no events have been reported
-The opportunistic Saildrone observations of dolphins and seabirds provide an opportunity to examine whether fish-school characteristics differ between periods of predator presence and absence. 
+To compensate for the constraints of vessel-based surveys, much attention has been paid to drone technology.
+The opportunistic Saildrone observations of dolphins and seabirds provide an opportunity to explore fine scale predator-prey interactions. 
 \
 \
 \
@@ -76,8 +74,9 @@ The opportunistic Saildrone observations of dolphins and seabirds provide an opp
 We quantify differences in school depth, acoustic density, size, vertical extent, and shape.
 
  - Is vertical distribution and school density differ by predator type? Non-predator vs dolphins vs seabirds
- - School density (and vertical distribution) vs distance to predators
- - When is the most risky time? time of day, time of year
+ - Relationship between school density/depth and distance to predators
+ - (When is the most risky time? time of day, time of year)
+
 \
 \
 \

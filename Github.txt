@@ -1,0 +1,28 @@
+#### connect your JupyterLab project to GitHub ####
+
+[Github]
+1. Log in to GitHub and create a new, empty repository (do not initialize it with a README or .gitignore yet).
+2. Copy the repository's HTTPS 
+
+[Terminal]
+# cd C:\Users\xiz011\OneDrive - University of Bergen\Desktop\Paper3  # (Run this if terminal directory is not set to the project)
+git init
+Set-Content -Path .gitignore -Value ".ipynb_checkpoints/`n*.png`n*.jpeg`n*.jpg`n*.PNG`n*.JPEG`n*.JPG" -Encoding UTF8
+git add . ':!*.txt'
+git status
+git commit -m "Initial commit"
+git branch -M main
+git remote add origin https://github.com/sakurakomiyama/Paper3.git
+git remote -v
+git push -u origin main
+
+
+####  Daily backup   ####
+git add . ':!*.txt'
+git status
+git commit -m "your comment"
+git remote -v
+git push origin main
+
+
+

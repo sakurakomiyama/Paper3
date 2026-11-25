@@ -19,6 +19,7 @@ library(suncalc)
 
 makeSchoolDt <- function (rawSv.dt, spdf, gps.dt) {
   Sv.dt <- rawSv.dt
+  Sv.dt <- Sv.dt[complete.cases(Sv.dt)]
   
   #== calculate depth_bin of pixel ==#
   setDT(Sv.dt)[, depth_bin := (DepthStop- DepthStart)/SampleCount]
